@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Route, Switch, Redirect } from 'react-router-dom';
-import Join from './components/Join';
-import Chat from './components/Chat';
-import RoomList from './components/RoomList';
-import NotFound from './components/NotFound';
+import Join from './components/Join/Join';
+import Chat from './components/Chat/Chat';
+import RoomList from './components/RoomList/RoomList';
+import NotFound from './components/NotFound/NotFound';
+import LandingPage from './components/LandingPage/LandingPage';
 import './App.css';
 
 function App() {
@@ -13,7 +14,7 @@ function App() {
     <Router>
       <div className="App">
         <Switch>
-          <Route exact path="/" render={() => <Redirect to="/join" />} />
+          <Route exact path="/" component={LandingPage} />
           <Route 
             path="/join" 
             render={(props) => <Join {...props} setUser={setUser} />} 

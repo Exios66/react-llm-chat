@@ -1,0 +1,48 @@
+{
+  "server": {
+    "port": 5000,
+    "host": "localhost"
+  },
+  "database": {
+    "url": "mongodb://localhost:27017/realtime-chat",
+    "options": {
+      "useNewUrlParser": true,
+      "useUnifiedTopology": true
+    }
+  },
+  "jwt": {
+    "secret": "your_jwt_secret_key_here",
+    "expiresIn": "1d"
+  },
+  "cors": {
+    "origin": "http://localhost:3000",
+    "methods": ["GET", "POST", "PUT", "DELETE"],
+    "allowedHeaders": ["Content-Type", "Authorization"]
+  },
+  "rateLimit": {
+    "windowMs": 900000,
+    "max": 100
+  },
+  "ai": {
+    "openai": {
+      "apiKey": "your_openai_api_key_here"
+    },
+    "anthropic": {
+      "apiKey": "your_anthropic_api_key_here"
+    },
+    "llama": {
+      "apiKey": "your_llama_api_key_here"
+    }
+  },
+  "logging": {
+    "level": "info",
+    "file": "logs/app.log"
+  },
+  "security": {
+    "bcryptSaltRounds": 10
+  },
+  "socketIO": {
+    "pingTimeout": 60000,
+    "pingInterval": 25000
+  }
+}

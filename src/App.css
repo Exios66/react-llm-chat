@@ -1,54 +1,107 @@
-* {
-  box-sizing: border-box;
+/* frontend/src/App.css */
+
+body {
   margin: 0;
   padding: 0;
-  font-family: 'Roboto', sans-serif;
+  font-family: Arial, sans-serif;
+  background-color: #f4f4f4;
 }
 
-html, body, #root, .App {
-  height: 100%;
-  background-color: #1A1A1D;
-  color: #FFFFFF;
+.joinContainer, .chatContainer {
+  max-width: 600px;
+  margin: 50px auto;
+  padding: 20px;
+  background: #fff;
+  border-radius: 5px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
-.App {
+.joinContainer h1, .chatHeader h2 {
+  text-align: center;
+}
+
+form {
   display: flex;
   flex-direction: column;
 }
 
-a {
-  text-decoration: none;
-  color: #4CAF50;
+input {
+  padding: 10px;
+  margin: 10px 0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
 }
 
-a:hover {
-  text-decoration: underline;
-}
-
-.button {
-  display: inline-block;
+button {
+  padding: 10px;
+  background: #28a745;
+  color: #fff;
   border: none;
-  padding: 15px 30px;
-  font-size: 16px;
-  text-align: center;
-  text-decoration: none;
-  background-color: #4CAF50;
-  color: white;
+  border-radius: 4px;
   cursor: pointer;
-  border-radius: 5px;
-  transition: background-color 0.3s ease;
 }
 
-.button:hover {
-  background-color: #45a049;
+button:hover {
+  background: #218838;
 }
 
-.error {
-  color: #ff6b6b;
-  margin-top: 10px;
-  font-size: 14px;
+.chatHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #ccc;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
 }
 
-.mt-20 {
-  margin-top: 20px;
+.usersList ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.usersList li {
+  margin: 5px 0;
+}
+
+.chatMessages {
+  height: 400px;
+  overflow-y: scroll;
+  border: 1px solid #ccc;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: #f9f9f9;
+}
+
+.message {
+  margin-bottom: 10px;
+}
+
+.message.own {
+  text-align: right;
+}
+
+.typing {
+  font-style: italic;
+  color: #888;
+}
+
+.chatForm {
+  display: flex;
+}
+
+.chatForm input {
+  flex: 1;
+  margin-right: 10px;
+}
+
+@media (max-width: 600px) {
+  .chatContainer, .joinContainer {
+    margin: 20px;
+    padding: 15px;
+  }
+
+  .chatMessages {
+    height: 300px;
+  }
 }

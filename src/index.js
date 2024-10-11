@@ -1,17 +1,17 @@
-require('dotenv').config(); // Load environment variables from .env file
+import 'dotenv/config';
 
-const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
-const cors = require('cors');
-const sanitizeHtml = require('sanitize-html');
-const rateLimit = require('express-rate-limit');
-const { v4: uuidv4 } = require('uuid');
-const moment = require('moment');
-const axios = require('axios');
-const { Configuration, OpenAIApi } = require('openai');
-const morgan = require('morgan'); // HTTP request logger
-const helmet = require('helmet'); // Security middleware
+import express from 'express';
+import http from 'http';
+import socketIo from 'socket.io';
+import cors from 'cors';
+import sanitizeHtml from 'sanitize-html';
+import rateLimit from 'express-rate-limit';
+import { v4 as uuidv4 } from 'uuid';
+import moment from 'moment';
+import axios from 'axios';
+import { Configuration, OpenAIApi } from 'openai';
+import morgan from 'morgan'; // HTTP request logger
+import helmet from 'helmet'; // Security middleware
 
 const app = express();
 const server = http.createServer(app);

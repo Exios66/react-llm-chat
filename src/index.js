@@ -1,4 +1,5 @@
-require('dotenv').config();
+require('dotenv').config(); // Load environment variables from .env file
+
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -8,69 +9,105 @@ const rateLimit = require('express-rate-limit');
 const { v4: uuidv4 } = require('uuid');
 const moment = require('moment');
 const axios = require('axios');
-const { Configuration, OpenAIApi } = require("openai");
+const { Configuration, OpenAIApi } = require('openai');
+const morgan = require('morgan'); // HTTP request logger
+const helmet = require('helmet'); // Security middleware
 
 const app = express();
 const server = http.createServer(app);
+
+// Initialize Socket.IO with CORS settings
 const io = socketIo(server, {
   cors: {
-    origin: "http://localhost:3000",
-    methods: ["GET", "POST"]
-  }
+    origin: process.env.CLIENT_URL || 'http://localhost:3000',
+    methods: ['GET', 'POST'],
+    credentials: true,
+  },
 });
 
-// Middleware
+// Middleware Setup
 app.use(cors({
-  origin: "http://localhost:3000"
+  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  methods: ['GET', 'POST'],
+  credentials: true,
 }));
 
-app.use(express.json());
+app.use(express.json()); // Parse JSON bodies
 
+app.use(helmet()); // Set security-related HTTP headers
+
+// HTTP Request Logging
+app.use(morgan('combined'));
+
+// Rate Limiting to prevent brute-force attacks and spam
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100
+  windowMs: 15 * 60 * 1000, // 15 minutes window
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again after 15 minutes',
 });
 
 app.use(limiter);
 
+// Environment Variables
 const PORT = process.env.PORT || 5000;
 
-// In-memory data storage
-const users = {};
-const rooms = {};
-const messages = {};
+// In-memory data storage (Consider using a database for production)
+const users = {}; // Stores user data: { socket.id: { id, name, room } }
+const rooms = {}; // Stores room data: { roomName: [userNames] }
+const messages = {}; // Stores messages per room: { roomName: [messageObjects] }
 
-// OpenAI Configuration
-const configuration = new Configuration({
+// Initialize OpenAI Configuration
+const openaiConfig = new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
 });
-const openai = new OpenAIApi(configuration);
+const openai = new OpenAIApi(openaiConfig);
 
-// Helper functions
+// Helper Functions
+
+/**
+ * Sanitizes incoming messages to prevent XSS attacks.
+ * @param {string} message - The raw message input.
+ * @returns {string} - The sanitized message.
+ */
 const sanitizeMessage = (message) => {
   return sanitizeHtml(message, {
-    allowedTags: [],
-    allowedAttributes: {}
+    allowedTags: [], // Disallow all HTML tags
+    allowedAttributes: {}, // Disallow all HTML attributes
   });
 };
 
+/**
+ * Creates a message object with necessary details.
+ * @param {string} user - Username of the sender.
+ * @param {string} text - The message content.
+ * @returns {object} - The message object.
+ */
 const createMessage = (user, text) => ({
   id: uuidv4(),
   user,
   text: sanitizeMessage(text),
-  timestamp: moment().format('YYYY-MM-DD HH:mm:ss')
+  timestamp: moment().format('YYYY-MM-DD HH:mm:ss'),
 });
 
+/**
+ * Adds a user to the chat application.
+ * @param {object} param0 - Object containing user details.
+ * @param {string} param0.id - Socket ID.
+ * @param {string} param0.name - Username.
+ * @param {string} param0.room - Room name.
+ * @returns {object} - Object containing either error or user data.
+ */
 const addUser = ({ id, name, room }) => {
   name = name.trim().toLowerCase();
   room = room.trim().toLowerCase();
 
+  // Check for existing user in the room
   const existingUser = Object.values(users).find(
     (user) => user.room === room && user.name === name
   );
 
   if (existingUser) {
-    return { error: 'Username is taken' };
+    return { error: 'Username is taken in this room' };
   }
 
   const user = { id, name, room };
@@ -88,6 +125,11 @@ const addUser = ({ id, name, room }) => {
   return { user };
 };
 
+/**
+ * Removes a user from the chat application.
+ * @param {string} id - Socket ID.
+ * @returns {object} - The removed user object.
+ */
 const removeUser = (id) => {
   const user = users[id];
   if (user) {
@@ -101,19 +143,33 @@ const removeUser = (id) => {
   return user;
 };
 
+/**
+ * Retrieves a user by their socket ID.
+ * @param {string} id - Socket ID.
+ * @returns {object} - The user object.
+ */
 const getUser = (id) => users[id];
 
+/**
+ * Retrieves all users in a specific room.
+ * @param {string} room - Room name.
+ * @returns {array} - Array of user objects.
+ */
 const getUsersInRoom = (room) => {
   return Object.values(users).filter((user) => user.room === room);
 };
 
-// LLM API calls
+/**
+ * Calls OpenAI's API to get a response based on the user's message.
+ * @param {string} message - User's message.
+ * @returns {string} - AI-generated response.
+ */
 const getOpenAIResponse = async (message) => {
   try {
     const response = await openai.createCompletion({
-      model: "text-davinci-002",
+      model: 'text-davinci-002',
       prompt: message,
-      max_tokens: 150
+      max_tokens: 150,
     });
     return response.data.choices[0].text.trim();
   } catch (error) {
@@ -122,21 +178,26 @@ const getOpenAIResponse = async (message) => {
   }
 };
 
+/**
+ * Calls Anthropic's Claude API to get a response based on the user's message.
+ * @param {string} message - User's message.
+ * @returns {string} - AI-generated response.
+ */
 const getClaudeResponse = async (message) => {
   try {
     const response = await axios.post(
       'https://api.anthropic.com/v1/complete',
       {
         prompt: `Human: ${message}\n\nAssistant:`,
-        model: "claude-v1",
+        model: 'claude-v1',
         max_tokens_to_sample: 150,
-        stop_sequences: ["\n\nHuman:"]
+        stop_sequences: ['\n\nHuman:'],
       },
       {
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': process.env.ANTHROPIC_API_KEY
-        }
+          'X-API-Key': process.env.ANTHROPIC_API_KEY,
+        },
       }
     );
     return response.data.completion.trim();
@@ -146,19 +207,24 @@ const getClaudeResponse = async (message) => {
   }
 };
 
+/**
+ * Calls OpenRouter's API to get a response based on the user's message.
+ * @param {string} message - User's message.
+ * @returns {string} - AI-generated response.
+ */
 const getOpenRouterResponse = async (message) => {
   try {
     const response = await axios.post(
       'https://openrouter.ai/api/v1/chat/completions',
       {
-        model: "openai/gpt-3.5-turbo",
-        messages: [{ role: "user", content: message }]
+        model: 'openai/gpt-3.5-turbo',
+        messages: [{ role: 'user', content: message }],
       },
       {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`
-        }
+          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        },
       }
     );
     return response.data.choices[0].message.content.trim();
@@ -168,84 +234,153 @@ const getOpenRouterResponse = async (message) => {
   }
 };
 
-// Socket.IO event handlers
+// Socket.IO Event Handlers
 io.on('connection', (socket) => {
-  console.log('New client connected');
+  console.log(`New client connected: ${socket.id}`);
 
+  /**
+   * Handles user joining a room.
+   * @param {object} param0 - Object containing user details.
+   * @param {string} param0.name - Username.
+   * @param {string} param0.room - Room name.
+   * @param {function} callback - Callback function for acknowledgments.
+   */
   socket.on('join', ({ name, room }, callback) => {
     const { error, user } = addUser({ id: socket.id, name, room });
 
-    if (error) return callback(error);
+    if (error) {
+      return callback({ status: 'error', message: error });
+    }
 
     socket.join(user.room);
 
-    socket.emit('message', createMessage('admin', `${user.name}, welcome to room ${user.room}.`));
-    socket.broadcast.to(user.room).emit('message', createMessage('admin', `${user.name} has joined!`));
+    // Welcome message to the user
+    socket.emit('message', createMessage('Admin', `Welcome to the room ${user.room}, ${user.name}!`));
 
+    // Broadcast to other users in the room that a new user has joined
+    socket.broadcast.to(user.room).emit('message', createMessage('Admin', `${user.name} has joined the chat.`));
+
+    // Send room data to all users in the room
     io.to(user.room).emit('roomData', {
       room: user.room,
-      users: getUsersInRoom(user.room)
+      users: getUsersInRoom(user.room),
     });
 
+    // Send last 50 messages to the newly joined user
     const roomMessages = messages[user.room].slice(-50);
     socket.emit('previousMessages', roomMessages);
 
-    callback();
+    callback({ status: 'ok' });
   });
 
+  /**
+   * Handles sending messages within a room.
+   * @param {string} message - The message content.
+   * @param {function} callback - Callback function for acknowledgments.
+   */
   socket.on('sendMessage', async (message, callback) => {
     const user = getUser(socket.id);
 
-    if (user) {
-      const msg = createMessage(user.name, message);
-      io.to(user.room).emit('message', msg);
-      messages[user.room].push(msg);
+    if (!user) {
+      return callback({ status: 'error', message: 'User not found.' });
+    }
 
-      // Keep only last 100 messages per room
-      if (messages[user.room].length > 100) {
-        messages[user.room] = messages[user.room].slice(-100);
-      }
+    // Create and broadcast the user's message
+    const msg = createMessage(user.name, message);
+    io.to(user.room).emit('message', msg);
+    messages[user.room].push(msg);
 
-      // Process message with selected LLMs
+    // Maintain only the last 100 messages
+    if (messages[user.room].length > 100) {
+      messages[user.room] = messages[user.room].slice(-100);
+    }
+
+    // Generate AI responses concurrently
+    try {
       const llmResponses = await Promise.all([
         getOpenAIResponse(message),
         getClaudeResponse(message),
-        getOpenRouterResponse(message)
+        getOpenRouterResponse(message),
       ]);
 
+      // Broadcast each AI response as a separate message
       llmResponses.forEach((response, index) => {
         const llmName = ['OpenAI', 'Claude', 'OpenRouter'][index];
         const llmMsg = createMessage(llmName, response);
         io.to(user.room).emit('message', llmMsg);
         messages[user.room].push(llmMsg);
       });
+    } catch (error) {
+      console.error('Error generating AI responses:', error);
+      const errorMsg = createMessage('Admin', 'Error generating AI responses.');
+      io.to(user.room).emit('message', errorMsg);
+      messages[user.room].push(errorMsg);
     }
 
-    callback();
+    callback({ status: 'ok' });
   });
 
+  /**
+   * Handles user disconnecting from the server.
+   */
   socket.on('disconnect', () => {
     const user = removeUser(socket.id);
 
     if (user) {
-      io.to(user.room).emit('message', createMessage('Admin', `${user.name} has left.`));
+      io.to(user.room).emit('message', createMessage('Admin', `${user.name} has left the chat.`));
       io.to(user.room).emit('roomData', {
         room: user.room,
-        users: getUsersInRoom(user.room)
+        users: getUsersInRoom(user.room),
       });
+      console.log(`Client disconnected: ${socket.id}`);
+    }
+  });
+
+  /**
+   * Handles typing indicators.
+   * @param {boolean} isTyping - Indicates if the user is typing.
+   */
+  socket.on('typing', (isTyping) => {
+    const user = getUser(socket.id);
+    if (user) {
+      socket.broadcast.to(user.room).emit('typing', { user: user.name, isTyping });
     }
   });
 });
 
-// Express routes
+// Express Routes
+
+/**
+ * GET /rooms
+ * Retrieves a list of all active rooms.
+ */
 app.get('/rooms', (req, res) => {
-  res.json(Object.keys(rooms));
+  res.json({ rooms: Object.keys(rooms) });
 });
 
+/**
+ * GET /room/:roomName/users
+ * Retrieves a list of users in a specific room.
+ */
 app.get('/room/:roomName/users', (req, res) => {
   const { roomName } = req.params;
-  const usersInRoom = getUsersInRoom(roomName.toLowerCase());
-  res.json(usersInRoom);
+  const room = roomName.trim().toLowerCase();
+  if (rooms[room]) {
+    res.json({ users: rooms[room] });
+  } else {
+    res.status(404).json({ error: 'Room not found.' });
+  }
 });
 
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+/**
+ * GET /health
+ * Health check endpoint to verify if the server is running.
+ */
+app.get('/health', (req, res) => {
+  res.json({ status: 'Server is running.' });
+});
+
+// Start the Server
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});

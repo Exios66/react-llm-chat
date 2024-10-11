@@ -1,6 +1,6 @@
-const jwt = require('jsonwebtoken');
-const config = require('config');
-const { UnauthorizedError, ForbiddenError } = require('../utils/errors');
+import jwt from 'jsonwebtoken';
+import config from 'config';
+import { UnauthorizedError, ForbiddenError } from '../utils/errors';
 
 const auth = (req, res, next) => {
   // Get token from header
@@ -16,7 +16,7 @@ const auth = (req, res, next) => {
     const decoded = jwt.verify(token, config.get('jwt.secret'));
 
     // Add user from payload
-    req.user = decoded.user;
+    req.user = decoded;
     next();
   } catch (err) {
     throw new UnauthorizedError('Token is not valid');
@@ -40,7 +40,7 @@ const authorize = (roles = []) => {
   };
 };
 
-module.exports = {
+export {
   auth,
   authorize
 };

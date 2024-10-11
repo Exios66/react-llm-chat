@@ -1,5 +1,8 @@
 import mongoose from 'mongoose';
 import config from 'config';
+import User from './User';
+import { UnauthorizedError, ForbiddenError } from '../utils/errors';
+import io from '../socket';
 
 const RoomSchema = new mongoose.Schema({
   name: {

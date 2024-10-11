@@ -78,3 +78,36 @@ app.get('/api/messages/:room', async (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const aiService = require('./services/aiService');
+const logger = require('./utils/logger');
+
+// Use logger middleware
+app.use(logger.logRequest);
+
+// Example usage in a route
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { message, room } = req.body;
+    
+    // Moderate content
+    const moderationResult = await aiService.moderateContent(message);
+    if (moderationResult.flagged) {
+      logger.warn(`Flagged content: ${message}`);
+      return res.status(400).json({ error: 'Message contains inappropriate content' });
+    }
+
+    // Generate AI response
+    const aiResponse = await aiService.generateResponse(message);
+    
+    // Log the interaction
+    logger.info(`User message: ${message}, AI response: ${aiResponse}`);
+
+    res.json({ aiResponse });
+  } catch (error) {
+    logger.error('Error in chat endpoint', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Error handling middleware
+app.use(logger.logError);

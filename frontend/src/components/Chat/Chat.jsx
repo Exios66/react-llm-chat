@@ -54,6 +54,8 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
+const ENDPOINT = process.env.REACT_APP_API_URL;
+
 let socket;
 
 const Chat = () => {
@@ -70,7 +72,6 @@ const Chat = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const ENDPOINT = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
   const messagesEndRef = useRef(null);
   const { error, handleError } = useErrorHandler();
@@ -97,7 +98,7 @@ const Chat = () => {
     } catch (err) {
       handleError(err);
     }
-  }, [roomId, page, ENDPOINT, token, handleError]);
+  }, [roomId, page, token, handleError]);
 
   useEffect(() => {
     if (!user || !token) {

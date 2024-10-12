@@ -1,48 +1,31 @@
-const config = require('config');
-const logger = require('../utils/logger');
+import { BadRequestError, NotFoundError, ForbiddenError } from '../utils/errors';
 
-const errorHandler = (err, req, res, next) => {
-  // Log the error
-  logger.error(`${err.name}: ${err.message}`);
-  logger.debug(err.stack);
+const errorHandler = (err, req, res, _next) => {
+  console.log('Error Handler Middleware:', err);
+  console.error(err.stack);
 
-  // Set default error status and message
-  let statusCode = err.statusCode || 500;
-  let errorMessage = err.message || 'Internal Server Error';
+  // Log additional request information for debugging
+  console.log('Request URL:', req.originalUrl);
+  console.log('Request Method:', req.method);
+  console.log('Request Headers:', req.headers);
+  console.log('Request Body:', req.body);
+  console.log('Error Handler Middleware:', err);
+  console.error(err);
 
-  // Handle specific error types
-  if (err.name === 'ValidationError') {
-    statusCode = 400;
-    errorMessage = Object.values(err.errors).map(error => error.message).join(', ');
-  } else if (err.name === 'UnauthorizedError') {
-    statusCode = 401;
-    errorMessage = 'Unauthorized: Invalid token';
-  } else if (err.name === 'ForbiddenError') {
-    statusCode = 403;
-    errorMessage = 'Forbidden: Insufficient permissions';
-  } else if (err.name === 'NotFoundError') {
-    statusCode = 404;
-    errorMessage = 'Resource not found';
+  if (err instanceof BadRequestError) {
+    return res.status(400).json({ message: err.message, errors: err.errors });
   }
 
-  // Send error response
-  res.status(statusCode).json({
-    error: {
-      message: errorMessage,
-      status: statusCode,
-      timestamp: new Date().toISOString(),
-    }
-  });
-
-  // If in development, send stack trace
-  if (config.get('env') === 'development') {
-    res.json({
-      ...res.json,
-      stack: err.stack
-    });
+  if (err instanceof NotFoundError) {
+    return res.status(404).json({ message: err.message });
   }
 
-  next();
+  if (err instanceof ForbiddenError) {
+    return res.status(403).json({ message: err.message });
+  }
+
+  // For any other type of error, return a generic 500 Internal Server Error
+  res.status(500).json({ message: 'An unexpected error occurred. Please try again later.' });
 };
 
-module.exports = errorHandler;
+export default errorHandler;

@@ -50,10 +50,9 @@ const Join = () => {
 
     setIsLoading(true);
     try {
-      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/chat/join`, { name, room });
-      const { userId, roomId } = response.data;
-      dispatch(setUser({ id: userId, name }));
-      history.push(`/chat/${roomId}?name=${encodeURIComponent(name)}`);
+      const response = await axios.post(`${process.env.REACT_APP_API_URL}/join`, { name, room });
+      dispatch(setUser({ name, id: response.data.userId }));
+      history.push(`/chat/${response.data.roomId}?name=${encodeURIComponent(name)}`);
     } catch (err) {
       handleError(err);
     } finally {

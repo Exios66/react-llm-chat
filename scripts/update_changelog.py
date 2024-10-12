@@ -3,24 +3,41 @@ import re
 import subprocess
 from datetime import datetime
 import semver
+import sys
 
 def get_latest_version():
-    with open('CHANGELOG.md', 'r') as f:
-        content = f.read()
-    versions = re.findall(r'\[(\d+\.\d+\.\d+)\]', content)
-    return max(versions, key=semver.Version.parse) if versions else '0.0.0'
+    try:
+        with open('CHANGELOG.md', 'r') as f:
+            content = f.read()
+        versions = re.findall(r'\[(\d+\.\d+\.\d+)\]', content)
+        return max(versions, key=semver.Version.parse) if versions else '0.0.0'
+    except Exception as e:
+        print(f"Error reading CHANGELOG.md: {str(e)}")
+        return '0.0.0'
 
 def increment_version(version):
-    v = semver.Version.parse(version)
-    return str(v.bump_patch())
+    try:
+        v = semver.Version.parse(version)
+        return str(v.bump_patch())
+    except Exception as e:
+        print(f"Error incrementing version: {str(e)}")
+        return '0.0.1'
 
 def get_staged_files():
-    result = subprocess.run(['git', 'diff', '--cached', '--name-only'], capture_output=True, text=True)
-    return result.stdout.strip().split('\n')
+    try:
+        result = subprocess.run(['git', 'diff', '--cached', '--name-only'], capture_output=True, text=True)
+        return result.stdout.strip().split('\n')
+    except Exception as e:
+        print(f"Error getting staged files: {str(e)}")
+        return []
 
 def get_commit_messages():
-    result = subprocess.run(['git', 'diff', '--cached', '--format=%s'], capture_output=True, text=True)
-    return [line for line in result.stdout.split('\n') if line.strip()]
+    try:
+        result = subprocess.run(['git', 'diff', '--cached', '--format=%s'], capture_output=True, text=True)
+        return [line for line in result.stdout.split('\n') if line.strip()]
+    except Exception as e:
+        print(f"Error getting commit messages: {str(e)}")
+        return []
 
 def categorize_changes(files, messages):
     categories = {
@@ -67,31 +84,37 @@ def categorize_changes(files, messages):
     return categories
 
 def update_changelog():
-    latest_version = get_latest_version()
-    new_version = increment_version(latest_version)
-    files = get_staged_files()
-    messages = get_commit_messages()
-    categories = categorize_changes(files, messages)
-    
-    with open('CHANGELOG.md', 'r') as f:
-        content = f.read()
-    
-    new_entry = f"\n## [{new_version}] - {datetime.now().strftime('%Y-%m-%d')}\n\n"
-    
-    for category, changes in categories.items():
-        if changes:
-            new_entry += f"### {category}\n\n"
-            for change in changes:
-                new_entry += f"- {change}\n"
-            new_entry += "\n"
-    
-    updated_content = re.sub(r'(## \[Unreleased\]\n\n)', f'\\1{new_entry}', content)
-    
-    with open('CHANGELOG.md', 'w') as f:
-        f.write(updated_content)
-    
-    subprocess.run(['git', 'add', 'CHANGELOG.md'])
-    print(f"CHANGELOG.md updated with version {new_version}")
+    try:
+        latest_version = get_latest_version()
+        new_version = increment_version(latest_version)
+        files = get_staged_files()
+        messages = get_commit_messages()
+        categories = categorize_changes(files, messages)
+        
+        with open('CHANGELOG.md', 'r') as f:
+            content = f.read()
+        
+        new_entry = f"\n## [{new_version}] - {datetime.now().strftime('%Y-%m-%d')}\n\n"
+        
+        for category, changes in categories.items():
+            if changes:
+                new_entry += f"### {category}\n\n"
+                for change in changes:
+                    new_entry += f"- {change}\n"
+                new_entry += "\n"
+        
+        updated_content = re.sub(r'(## \[Unreleased\]\n\n)', f'\\1{new_entry}', content)
+        
+        with open('CHANGELOG.md', 'w') as f:
+            f.write(updated_content)
+        
+        subprocess.run(['git', 'add', 'CHANGELOG.md'])
+        print(f"CHANGELOG.md updated with version {new_version}")
+        return True
+    except Exception as e:
+        print(f"Error updating CHANGELOG.md: {str(e)}")
+        return False
 
 if __name__ == "__main__":
-    update_changelog()
+    success = update_changelog()
+    sys.exit(0 if success else 1)

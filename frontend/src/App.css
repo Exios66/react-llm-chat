@@ -7,16 +7,60 @@ body {
   background-color: #f4f4f4;
 }
 
+.App {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+header {
+  background-color: #28a745;
+  color: white;
+  padding: 1rem;
+  text-align: center;
+  position: relative;
+}
+
+main {
+  flex: 1;
+  padding: 1rem;
+}
+
+footer {
+  background-color: #f8f9fa;
+  padding: 1rem;
+  text-align: center;
+}
+
+.dark-mode {
+  background-color: #333;
+  color: #fff;
+}
+
+.dark-mode header {
+  background-color: #1a1a1a;
+}
+
+.dark-mode footer {
+  background-color: #1a1a1a;
+  color: #fff;
+}
+
 .joinContainer, .chatContainer {
   max-width: 600px;
-  margin: 50px auto;
+  margin: 0 auto;
   padding: 20px;
   background: #fff;
   border-radius: 5px;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
-.joinContainer h1, .chatHeader h2 {
+.dark-mode .joinContainer, .dark-mode .chatContainer {
+  background: #444;
+  color: #fff;
+}
+
+h1, h2 {
   text-align: center;
 }
 
@@ -39,10 +83,19 @@ button {
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  margin: 5px 0;
 }
 
 button:hover {
   background: #218838;
+}
+
+.dark-mode button {
+  background: #4a4a4a;
+}
+
+.dark-mode button:hover {
+  background: #5a5a5a;
 }
 
 .chatHeader {
@@ -54,16 +107,6 @@ button:hover {
   margin-bottom: 10px;
 }
 
-.usersList ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.usersList li {
-  margin: 5px 0;
-}
-
 .chatMessages {
   height: 400px;
   overflow-y: scroll;
@@ -71,6 +114,11 @@ button:hover {
   padding: 10px;
   margin-bottom: 10px;
   background: #f9f9f9;
+}
+
+.dark-mode .chatMessages {
+  background: #2a2a2a;
+  border-color: #555;
 }
 
 .message {
@@ -95,9 +143,20 @@ button:hover {
   margin-right: 10px;
 }
 
+.dark-mode-toggle {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
 @media (max-width: 600px) {
   .chatContainer, .joinContainer {
-    margin: 20px;
+    margin: 10px;
     padding: 15px;
   }
 

@@ -1,20 +1,18 @@
-import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Route, Switch, Redirect } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { ThemeProvider } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
-import { SnackbarProvider } from 'notistack';
 import { loadUser } from './redux/actions/authActions';
-import { lightTheme, darkTheme } from './themes/theme';
-import Join from './components/Join/Join';
-import Chat from './components/Chat/Chat';
-import RoomList from './components/RoomList/RoomList';
-import NotFound from './components/NotFound/NotFound';
-import LoadingSpinner from './components/LoadingSpinner/LoadingSpinner';
-import ErrorBoundary from './components/ErrorBoundary/ErrorBoundary';
+import axios from 'axios';
 import './App.css';
 
+import Home from './components/Home/Home';
+import Chat from './components/Chat/Chat';
+import SentenceCompletion from './components/SentenceCompletion/SentenceCompletion';
+import ModelSelection from './components/ModelSelection/ModelSelection';
+import Settings from './components/Settings/Settings';
+import Admin from './components/Admin/Admin';
+
 function App() {
+  const [currentPage, setCurrentPage] = useState('home');
   const dispatch = useDispatch();
   const { isAuthenticated, loading } = useSelector(state => state.user);
   const darkMode = useSelector(state => state.theme.darkMode);
@@ -23,37 +21,73 @@ function App() {
     dispatch(loadUser());
   }, [dispatch]);
 
+  useEffect(() => {
+    const handleNavigation = (event) => {
+      setCurrentPage(event.detail.page);
+    };
+
+    window.addEventListener('navigateTo', handleNavigation);
+
+    return () => {
+      window.removeEventListener('navigateTo', handleNavigation);
+    };
+  }, []);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/data`);
+        // Handle the response
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  const renderContent = () => {
+    switch (currentPage) {
+      case 'home':
+        return <Home />;
+      case 'chat':
+        return <Chat />;
+      case 'sentence-completion':
+        return <SentenceCompletion />;
+      case 'model-selection':
+        return <ModelSelection />;
+      case 'settings':
+        return <Settings />;
+      case 'admin':
+        return <Admin />;
+      default:
+        return <Home />;
+    }
+  };
+
   if (loading) {
-    return <LoadingSpinner />;
+    return <div>Loading...</div>;
   }
 
   return (
-    <ErrorBoundary>
-      <ThemeProvider theme={darkMode ? darkTheme : lightTheme}>
-        <CssBaseline />
-        <SnackbarProvider maxSnack={3}>
-          <Router>
-            <div className={`App ${darkMode ? 'dark-mode' : ''}`}>
-              <Switch>
-                <Route exact path="/" render={() => (
-                  isAuthenticated ? <Redirect to="/rooms" /> : <Redirect to="/join" />
-                )} />
-                <Route path="/join" render={() => (
-                  isAuthenticated ? <Redirect to="/rooms" /> : <Join />
-                )} />
-                <Route path="/rooms" render={() => (
-                  isAuthenticated ? <RoomList /> : <Redirect to="/join" />
-                )} />
-                <Route path="/chat/:roomId" render={() => (
-                  isAuthenticated ? <Chat /> : <Redirect to="/join" />
-                )} />
-                <Route component={NotFound} />
-              </Switch>
-            </div>
-          </Router>
-        </SnackbarProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
+    <div className={`App ${darkMode ? 'dark-mode' : ''}`}>
+      <header>
+        AI Chatbot Interface
+        <button className="dark-mode-toggle" onClick={() => dispatch({ type: 'TOGGLE_DARK_MODE' })}>
+          {darkMode ? '☀️' : '🌙'}
+        </button>
+      </header>
+      <main>
+        {renderContent()}
+      </main>
+      <footer>
+        <button onClick={() => setCurrentPage('home')}>Home</button>
+        <button onClick={() => setCurrentPage('chat')}>Chat</button>
+        <button onClick={() => setCurrentPage('model-selection')}>Models</button>
+        <button onClick={() => setCurrentPage('settings')}>Settings</button>
+        {isAuthenticated && <button onClick={() => setCurrentPage('admin')}>Admin</button>}
+      </footer>
+    </div>
   );
 }
 

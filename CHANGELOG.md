@@ -64,6 +64,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release of the chat application
 
+Some text with a valid \\d escape sequence
+
 [Unreleased]: https://github.com/yourusername/your-repo-name/compare/v0.1.2...HEAD
 [0.1.2]: https://github.com/yourusername/your-repo-name/compare/v0.0.2...v0.1.2
 [0.0.2]: https://github.com/yourusername/your-repo-name/compare/v0.0.1...v0.0.2

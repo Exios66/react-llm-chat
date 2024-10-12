@@ -4,7 +4,7 @@ This is a real-time chat application built with React, Node.js, Express, and Soc
 
 ## Features
 
-- User authentication
+- User authentication using JWT
 - Create and join chat rooms
 - Real-time messaging
 - Message history
@@ -19,6 +19,7 @@ Before you begin, ensure you have met the following requirements:
 - Node.js (v14 or later)
 - npm (v6 or later)
 - MongoDB
+- Python (v3.x)
 
 ## Installation
 
@@ -40,14 +41,25 @@ Before you begin, ensure you have met the following requirements:
    npm install
    ```
 
-4. Create a `.env` file in the backend directory with the following content:
+4. Install Python dependencies:
+   ```
+   pip install semver
+   ```
+
+5. Set up the pre-commit hook:
+   ```
+   chmod +x .git/hooks/pre-commit
+   ```
+
+6. Create a `.env` file in the backend directory with the following content:
    ```
    MONGODB_URI=your_mongodb_connection_string
    JWT_SECRET=your_jwt_secret
    PORT=5000
+   FRONTEND_URL=http://localhost:3000
    ```
 
-5. Create a `.env` file in the frontend directory with the following content:
+7. Create a `.env` file in the frontend directory with the following content:
    ```
    REACT_APP_API_URL=http://localhost:5000
    ```
@@ -87,6 +99,8 @@ npm test
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+Before committing your changes, make sure you have set up the pre-commit hook as described in the installation steps. This hook will automatically update the CHANGELOG.md file with your changes.
 
 ## License
 

@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useHistory } from 'react-router-dom';
-import axios from 'axios';
 import { useDispatch, useSelector } from 'react-redux';
-import { setRooms, addRoom, updateRoom, removeRoom } from '../../redux/actions/roomActions';
 import {
   List,
   ListItem,
@@ -13,11 +11,14 @@ import {
   Box,
   CircularProgress,
   Pagination,
+  TextField,
 } from '@mui/material';
 import { makeStyles } from '@mui/styles';
 import ErrorBoundary from '../ErrorBoundary/ErrorBoundary';
 import useErrorHandler from '../../hooks/useErrorHandler';
-import io from 'socket.io-client';
+import { logoutUser } from '../../redux/actions/authActions';
+import { setRooms, addRoom } from '../../redux/actions/roomActions';
+import axios from 'axios';
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -34,22 +35,24 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
-const RoomList = React.memo(({ user }) => {
+const RoomList = () => {
   const classes = useStyles();
   const dispatch = useDispatch();
   const history = useHistory();
   const rooms = useSelector(state => state.rooms);
+  const token = useSelector(state => state.user.token);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [newRoomName, setNewRoomName] = useState('');
   const { error, handleError } = useErrorHandler();
-  const ENDPOINT = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
-  const fetchRooms = useCallback(async (pageNum = 1) => {
+  const fetchRooms = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${ENDPOINT}/api/rooms?page=${pageNum}`);
+      const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/chat/rooms?page=${page}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       dispatch(setRooms(response.data.rooms));
       setTotalPages(response.data.totalPages);
       setLoading(false);
@@ -57,42 +60,40 @@ const RoomList = React.memo(({ user }) => {
       handleError(err);
       setLoading(false);
     }
-  }, [dispatch, ENDPOINT, handleError]);
+  }, [dispatch, page, token, handleError]);
 
   useEffect(() => {
     fetchRooms();
-
-    const socket = io(ENDPOINT);
-
-    socket.on('roomCreated', (room) => {
-      dispatch(addRoom(room));
-    });
-
-    socket.on('roomUpdated', (room) => {
-      dispatch(updateRoom(room));
-    });
-
-    socket.on('roomDeleted', (roomId) => {
-      dispatch(removeRoom(roomId));
-    });
-
-    return () => {
-      socket.disconnect();
-    };
-  }, [dispatch, ENDPOINT, fetchRooms]);
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await fetchRooms(page);
-    setRefreshing(false);
-  };
+  }, [fetchRooms]);
 
   const handlePageChange = (event, value) => {
     setPage(value);
-    fetchRooms(value);
   };
 
-  if (loading) return <CircularProgress />;
+  const handleCreateRoom = async (e) => {
+    e.preventDefault();
+    if (!newRoomName.trim()) return;
+
+    try {
+      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/chat/rooms`, 
+        { name: newRoomName },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      dispatch(addRoom(response.data));
+      setNewRoomName('');
+    } catch (err) {
+      handleError(err);
+    }
+  };
+
+  const handleLogout = () => {
+    dispatch(logoutUser());
+    history.push('/join');
+  };
+
+  if (loading) {
+    return <CircularProgress />;
+  }
 
   return (
     <ErrorBoundary>
@@ -100,25 +101,24 @@ const RoomList = React.memo(({ user }) => {
         <Typography variant="h4" component="h1" gutterBottom>
           Available Rooms
         </Typography>
-        {rooms.length === 0 ? (
-          <Typography>No rooms available. Why not create one?</Typography>
-        ) : (
-          <List className={classes.list} aria-label="room list">
-            {rooms.map((room) => (
-              <ListItem
-                button
-                key={room.id}
-                component={Link}
-                to={`/chat/${room.id}?name=${encodeURIComponent(user.name)}`}
-              >
-                <ListItemText
-                  primary={room.name}
-                  secondary={`${room.userCount} users`}
-                />
-              </ListItem>
-            ))}
-          </List>
-        )}
+        <Button onClick={handleLogout} variant="outlined" color="secondary">
+          Logout
+        </Button>
+        <List className={classes.list} aria-label="room list">
+          {rooms.map((room) => (
+            <ListItem
+              button
+              key={room.id}
+              component={Link}
+              to={`/chat/${room.id}`}
+            >
+              <ListItemText
+                primary={room.name}
+                secondary={`${room.userCount || 0} users`}
+              />
+            </ListItem>
+          ))}
+        </List>
         <Pagination
           count={totalPages}
           page={page}
@@ -126,21 +126,18 @@ const RoomList = React.memo(({ user }) => {
           color="primary"
         />
         <Box className={classes.actions}>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => history.push('/join')}
-          >
-            Create New Room
-          </Button>
-          <Button
-            variant="outlined"
-            color="primary"
-            onClick={handleRefresh}
-            disabled={refreshing}
-          >
-            {refreshing ? 'Refreshing...' : 'Refresh Rooms'}
-          </Button>
+          <form onSubmit={handleCreateRoom}>
+            <TextField
+              value={newRoomName}
+              onChange={(e) => setNewRoomName(e.target.value)}
+              placeholder="New room name"
+              variant="outlined"
+              size="small"
+            />
+            <Button type="submit" variant="contained" color="primary">
+              Create New Room
+            </Button>
+          </form>
         </Box>
       </Container>
       {error && (
@@ -150,6 +147,6 @@ const RoomList = React.memo(({ user }) => {
       )}
     </ErrorBoundary>
   );
-});
+};
 
 export default RoomList;

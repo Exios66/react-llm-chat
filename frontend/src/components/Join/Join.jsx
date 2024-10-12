@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
 import { useHistory } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
-import { TextField, Button, Typography, Container, Box, CircularProgress } from '@mui/material';
+import { TextField, Button, Typography, Container, Box, CircularProgress, Tabs, Tab } from '@mui/material';
 import { makeStyles } from '@mui/styles';
-import { setUser } from '../../redux/actions/userActions';
+import { registerUser, loginUser } from '../../redux/actions/authActions';
 import useErrorHandler from '../../hooks/useErrorHandler';
-import axios from 'axios';
 
 const useStyles = makeStyles((theme) => ({
   form: {
@@ -20,39 +19,44 @@ const useStyles = makeStyles((theme) => ({
 }));
 
 const Join = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [room, setRoom] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [tabValue, setTabValue] = useState(0);
   const classes = useStyles();
   const history = useHistory();
   const dispatch = useDispatch();
   const { error, handleError } = useErrorHandler();
 
-  const validateInput = (input, type) => {
-    if (input.length < 3) {
-      return `${type} must be at least 3 characters long`;
+  const handleTabChange = (event, newValue) => {
+    setTabValue(newValue);
+  };
+
+  const validateInput = () => {
+    if (!email || !password) {
+      handleError(new Error('Email and password are required'));
+      return false;
     }
-    if (input.length > 20) {
-      return `${type} must not exceed 20 characters`;
+    if (tabValue === 0 && !name) {
+      handleError(new Error('Name is required for registration'));
+      return false;
     }
-    return '';
+    return true;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const nameError = validateInput(name, 'Username');
-    const roomError = validateInput(room, 'Room name');
-    
-    if (nameError || roomError) {
-      handleError(new Error(nameError || roomError));
-      return;
-    }
+    if (!validateInput()) return;
 
     setIsLoading(true);
     try {
-      const response = await axios.post(`${process.env.REACT_APP_API_URL}/join`, { name, room });
-      dispatch(setUser({ name, id: response.data.userId }));
-      history.push(`/chat/${response.data.roomId}?name=${encodeURIComponent(name)}`);
+      if (tabValue === 0) {
+        await dispatch(registerUser({ name, email, password }));
+      } else {
+        await dispatch(loginUser({ email, password }));
+      }
+      history.push('/rooms');
     } catch (err) {
       handleError(err);
     } finally {
@@ -66,36 +70,38 @@ const Join = () => {
         <Typography variant="h4" component="h1" gutterBottom align="center">
           Join Chat
         </Typography>
+        <Tabs value={tabValue} onChange={handleTabChange} centered>
+          <Tab label="Register" />
+          <Tab label="Login" />
+        </Tabs>
         <form onSubmit={handleSubmit} className={classes.form}>
+          {tabValue === 0 && (
+            <TextField
+              fullWidth
+              label="Name"
+              variant="outlined"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={isLoading}
+            />
+          )}
           <TextField
             fullWidth
-            label="Username"
+            label="Email"
             variant="outlined"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            error={!!error}
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             disabled={isLoading}
-            inputProps={{
-              'aria-label': 'Username',
-              'aria-required': 'true',
-              minLength: 3,
-              maxLength: 20,
-            }}
           />
           <TextField
             fullWidth
-            label="Room Name"
+            label="Password"
             variant="outlined"
-            value={room}
-            onChange={(e) => setRoom(e.target.value)}
-            error={!!error}
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             disabled={isLoading}
-            inputProps={{
-              'aria-label': 'Room Name',
-              'aria-required': 'true',
-              minLength: 3,
-              maxLength: 20,
-            }}
           />
           <Button
             type="submit"
@@ -103,9 +109,8 @@ const Join = () => {
             color="primary"
             className={classes.submitButton}
             disabled={isLoading}
-            aria-label="Join Chat"
           >
-            {isLoading ? <CircularProgress size={24} /> : 'Join Chat'}
+            {isLoading ? <CircularProgress size={24} /> : (tabValue === 0 ? 'Register' : 'Login')}
           </Button>
         </form>
         {error && (

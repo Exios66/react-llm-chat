@@ -1,100 +1,108 @@
-import { Message } from './models/Message';
-import { Room } from './models/Room';
-import { User } from './models/User';
+import { Server } from 'socket.io';
+import jwt from 'jsonwebtoken';
+import Message from './models/Message';
+import Room from './models/Room';
+import User from './models/User';
 import { BadRequestError } from './utils/errors';
-import { sanitizeHtml } from './utils/sanitization';
-import { profanityFilter } from './utils/contentFilters';
-import logger from './utils/logger';
 
-export const initializeSocket = (io) => {
+export const initializeSocket = (server) => {
+  const io = new Server(server, {
+    cors: {
+      origin: process.env.FRONTEND_URL || "http://localhost:3000",
+      methods: ["GET", "POST"]
+    }
+  });
+
+  io.use(async (socket, next) => {
+    try {
+      const token = socket.handshake.query.token;
+      if (!token) {
+        return next(new Error('Authentication error'));
+      }
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const user = await User.findById(decoded._id);
+      if (!user) {
+        return next(new Error('Authentication error'));
+      }
+      socket.user = user;
+      next();
+    } catch (error) {
+      next(new Error('Authentication error'));
+    }
+  });
+
   io.on('connection', (socket) => {
-    logger.info('New client connected');
+    console.log('New client connected');
 
-    socket.on('join', async ({ name, room }) => {
+    socket.on('join', async ({ roomId }) => {
       try {
-        const user = await User.findById(socket.handshake.query.userId);
-        if (!user) {
-          throw new BadRequestError('User not found');
-        }
-
-        const chatRoom = await Room.findById(room);
-        if (!chatRoom) {
+        const room = await Room.findById(roomId);
+        if (!room) {
           throw new BadRequestError('Room not found');
         }
 
-        await socket.join(room);
-        logger.info(`${name} has joined ${room}`);
+        socket.join(roomId);
+        console.log(`${socket.user.name} has joined ${room.name}`);
         
         // Send previous messages
-        const messages = await Message.find({ room })
+        const messages = await Message.find({ room: roomId })
           .sort({ createdAt: -1 })
           .limit(50)
           .populate('sender', 'name');
         socket.emit('previousMessages', messages.reverse());
 
         // Broadcast to everyone in the room that a new user has joined
-        socket.to(room).emit('message', { 
+        socket.to(roomId).emit('message', { 
           user: 'admin', 
-          text: `${name} has joined the room` 
+          text: `${socket.user.name} has joined the room` 
         });
 
         // Send users in room
-        const usersInRoom = await User.find({ _id: { $in: chatRoom.members } });
-        io.to(room).emit('roomData', { 
-          room: chatRoom.name, 
+        const usersInRoom = await User.find({ _id: { $in: room.members } });
+        io.to(roomId).emit('roomData', { 
+          room: room.name, 
           users: usersInRoom.map(u => ({ id: u._id, name: u.name }))
         });
       } catch (error) {
-        logger.error('Error in join event', error);
+        console.error('Error in join event', error);
         socket.emit('error', { message: error.message });
       }
     });
 
-    socket.on('sendMessage', async ({ name, room, message }) => {
+    socket.on('sendMessage', async ({ roomId, message }) => {
       try {
-        const user = await User.findById(socket.handshake.query.userId);
-        if (!user) {
-          throw new BadRequestError('User not found');
-        }
-
-        const chatRoom = await Room.findById(room);
-        if (!chatRoom) {
+        const room = await Room.findById(roomId);
+        if (!room) {
           throw new BadRequestError('Room not found');
         }
 
-        logger.info(`Message received from ${name} in ${room}: ${message}`);
-        
-        // Sanitize and filter message
-        let sanitizedMessage = sanitizeHtml(message);
-        sanitizedMessage = profanityFilter(sanitizedMessage);
-
-        if (sanitizedMessage.trim().length === 0) {
-          throw new BadRequestError('Message content is invalid');
-        }
+        console.log(`Message received from ${socket.user.name} in ${room.name}: ${message}`);
         
         // Save message to database
         const newMessage = new Message({ 
-          room: chatRoom._id, 
-          sender: user._id, 
-          content: sanitizedMessage 
+          room: room._id, 
+          sender: socket.user._id, 
+          content: message 
         });
         await newMessage.save();
         
         // Broadcast the message to everyone in the room
-        io.to(room).emit('message', { 
+        io.to(roomId).emit('message', { 
           id: newMessage._id,
-          user: name, 
-          text: sanitizedMessage,
+          user: socket.user.name, 
+          text: message,
           createdAt: newMessage.createdAt
         });
       } catch (error) {
-        logger.error('Error in sendMessage event', error);
+        console.error('Error in sendMessage event', error);
         socket.emit('error', { message: error.message });
       }
     });
 
     socket.on('disconnect', () => {
-      logger.info('Client disconnected');
+      console.log('Client disconnected');
     });
   });
+
+  return io;
 };

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useHistory } from 'react-router-dom';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import io from 'socket.io-client';
 import DOMPurify from 'dompurify';
 import { debounce } from 'lodash';
@@ -21,6 +21,7 @@ import {
 import { makeStyles } from '@mui/styles';
 import Message from './Message';
 import useErrorHandler from '../../hooks/useErrorHandler';
+import { logoutUser } from '../../redux/actions/authActions';
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -59,7 +60,9 @@ const Chat = () => {
   const classes = useStyles();
   const { roomId } = useParams();
   const history = useHistory();
-  const user = useSelector(state => state.user);
+  const dispatch = useDispatch();
+  const user = useSelector(state => state.user.user);
+  const token = useSelector(state => state.user.token);
   const [users, setUsers] = useState([]);
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
@@ -79,7 +82,11 @@ const Chat = () => {
 
   const fetchMessages = useCallback(async () => {
     try {
-      const response = await fetch(`${ENDPOINT}/api/chat/messages/${roomId}?page=${page}`);
+      const response = await fetch(`${ENDPOINT}/api/chat/messages/${roomId}?page=${page}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch messages');
       }
@@ -90,16 +97,16 @@ const Chat = () => {
     } catch (err) {
       handleError(err);
     }
-  }, [roomId, page, ENDPOINT, handleError]);
+  }, [roomId, page, ENDPOINT, token, handleError]);
 
   useEffect(() => {
-    if (!user.id) {
+    if (!user || !token) {
       history.push('/join');
       return;
     }
 
     socket = io(ENDPOINT, {
-      query: { userId: user.id, roomId }
+      query: { token }
     });
 
     socket.emit('join', { name: user.name, room: roomId }, (error) => {
@@ -113,7 +120,7 @@ const Chat = () => {
       socket.emit('disconnect');
       socket.off();
     };
-  }, [ENDPOINT, user, roomId, history, handleError]);
+  }, [ENDPOINT, user, token, roomId, history, handleError]);
 
   useEffect(() => {
     fetchMessages();
@@ -170,6 +177,11 @@ const Chat = () => {
     }
   }, [hasMore]);
 
+  const handleLogout = useCallback(() => {
+    dispatch(logoutUser());
+    history.push('/join');
+  }, [dispatch, history]);
+
   if (isLoading) {
     return <CircularProgress />;
   }
@@ -180,6 +192,9 @@ const Chat = () => {
         <Typography variant="h4" gutterBottom>
           Room: {roomId}
         </Typography>
+        <Button onClick={handleLogout} variant="outlined" color="secondary">
+          Logout
+        </Button>
         <FormGroup row>
           {['OpenAI', 'Claude', 'OpenRouter'].map((llm) => (
             <FormControlLabel

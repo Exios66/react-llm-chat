@@ -1,122 +1,145 @@
-import React, { useState } from 'react';
-import { useHistory } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
-import { TextField, Button, Typography, Container, Box, CircularProgress } from '@mui/material';
-import { makeStyles } from '@mui/styles';
-import { setUser } from '../../redux/actions/userActions';
-import useErrorHandler from '../../hooks/useErrorHandler';
-import axios from 'axios';
+import express from 'express';
+import { auth } from '../middleware/auth';
+import { check, validationResult } from 'express-validator';
+import Message from '../models/Message';
+import Room from '../models/Room';
+import User from '../models/User';
+import { BadRequestError, NotFoundError, ForbiddenError } from '../utils/errors';
 
-const useStyles = makeStyles((theme) => ({
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: theme.spacing(2),
-  },
-  submitButton: {
-    marginTop: theme.spacing(2),
-  },
-}));
+const router = express.Router();
 
-const Join = () => {
-  const [name, setName] = useState('');
-  const [room, setRoom] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const classes = useStyles();
-  const history = useHistory();
-  const dispatch = useDispatch();
-  const { error, handleError } = useErrorHandler();
+// @route   GET api/chat/rooms
+// @desc    Get all rooms
+// @access  Private
+router.get('/rooms', auth, async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
 
-  const validateInput = (input, type) => {
-    if (input.length < 3) {
-      return `${type} must be at least 3 characters long`;
+    const rooms = await Room.find()
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    const totalRooms = await Room.countDocuments();
+    const totalPages = Math.ceil(totalRooms / limit);
+
+    res.json({
+      rooms,
+      currentPage: page,
+      totalPages,
+      totalRooms
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route   POST api/chat/rooms
+// @desc    Create a new room
+// @access  Private
+router.post('/rooms', [auth, [
+  check('name', 'Room name is required').not().isEmpty()
+]], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  try {
+    const newRoom = new Room({
+      name: req.body.name,
+      creator: req.user.id
+    });
+
+    const room = await newRoom.save();
+
+    res.json(room);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route   GET api/chat/messages/:roomId
+// @desc    Get messages for a specific room
+// @access  Private
+router.get('/messages/:roomId', auth, async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+
+    const room = await Room.findById(roomId);
+    if (!room) {
+      throw new NotFoundError('Room not found');
     }
-    if (input.length > 20) {
-      return `${type} must not exceed 20 characters`;
+
+    const skip = (page - 1) * limit;
+    const messages = await Message.find({ room: roomId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('sender', 'name');
+
+    const totalMessages = await Message.countDocuments({ room: roomId });
+    const hasMore = totalMessages > page * limit;
+
+    res.json({
+      messages: messages.reverse(),
+      currentPage: page,
+      hasMore
+    });
+  } catch (err) {
+    console.error(err);
+    if (err instanceof NotFoundError) {
+      return res.status(404).json({ msg: err.message });
     }
-    return '';
-  };
+    res.status(500).send('Server Error');
+  }
+});
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const nameError = validateInput(name, 'Username');
-    const roomError = validateInput(room, 'Room name');
-    
-    if (nameError || roomError) {
-      handleError(new Error(nameError || roomError));
-      return;
+// @route   POST api/chat/messages
+// @desc    Send a new message
+// @access  Private
+router.post('/messages', [auth, [
+  check('content', 'Message content is required').not().isEmpty(),
+  check('roomId', 'Room ID is required').not().isEmpty()
+]], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  try {
+    const { content, roomId } = req.body;
+
+    const room = await Room.findById(roomId);
+    if (!room) {
+      throw new NotFoundError('Room not found');
     }
 
-    setIsLoading(true);
-    try {
-      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/chat/join`, { name, room });
-      const { userId, roomId } = response.data;
-      dispatch(setUser({ id: userId, name }));
-      history.push(`/chat/${roomId}?name=${encodeURIComponent(name)}`);
-    } catch (err) {
-      handleError(err);
-    } finally {
-      setIsLoading(false);
+    const newMessage = new Message({
+      content,
+      sender: req.user.id,
+      room: roomId
+    });
+
+    const message = await newMessage.save();
+    await message.populate('sender', 'name').execPopulate();
+
+    // Here you would typically emit this new message to all users in the room using socket.io
+
+    res.json(message);
+  } catch (err) {
+    console.error(err);
+    if (err instanceof NotFoundError) {
+      return res.status(404).json({ msg: err.message });
     }
-  };
+    res.status(500).send('Server Error');
+  }
+});
 
-  return (
-    <Container maxWidth="sm">
-      <Box my={4}>
-        <Typography variant="h4" component="h1" gutterBottom align="center">
-          Join Chat
-        </Typography>
-        <form onSubmit={handleSubmit} className={classes.form}>
-          <TextField
-            fullWidth
-            label="Username"
-            variant="outlined"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            error={!!error}
-            disabled={isLoading}
-            inputProps={{
-              'aria-label': 'Username',
-              'aria-required': 'true',
-              minLength: 3,
-              maxLength: 20,
-            }}
-          />
-          <TextField
-            fullWidth
-            label="Room Name"
-            variant="outlined"
-            value={room}
-            onChange={(e) => setRoom(e.target.value)}
-            error={!!error}
-            disabled={isLoading}
-            inputProps={{
-              'aria-label': 'Room Name',
-              'aria-required': 'true',
-              minLength: 3,
-              maxLength: 20,
-            }}
-          />
-          <Button
-            type="submit"
-            variant="contained"
-            color="primary"
-            className={classes.submitButton}
-            disabled={isLoading}
-            aria-label="Join Chat"
-          >
-            {isLoading ? <CircularProgress size={24} /> : 'Join Chat'}
-          </Button>
-        </form>
-        {error && (
-          <Typography color="error" align="center" style={{ marginTop: '1rem' }}>
-            {error.message}
-          </Typography>
-        )}
-      </Box>
-    </Container>
-  );
-};
-
-export default Join;
+export default router;

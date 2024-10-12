@@ -1,6 +1,5 @@
 import express from 'express';
 import http from 'http';
-import { Server } from 'socket.io';
 import cors from 'cors';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
@@ -9,18 +8,11 @@ import logger from './utils/logger';
 import chatRoutes from './routes/ChatRoutes';
 import authRoutes from './routes/authRoutes';
 import { initializeSocket } from './socket';
-import authMiddleware from './middleware/authMiddleware';
 
 dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
-    methods: ["GET", "POST"]
-  }
-});
 
 // Middleware
 app.use(cors());
@@ -31,16 +23,17 @@ app.use(logger.logRequest);
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
+  useCreateIndex: true,
 })
 .then(() => logger.info('Connected to MongoDB'))
 .catch(err => logger.error('Could not connect to MongoDB', err));
 
 // Initialize socket
-initializeSocket(io);
+const io = initializeSocket(server);
 
 // Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/chat', authMiddleware, chatRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

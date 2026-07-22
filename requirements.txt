@@ -21,7 +21,7 @@ flower==1.2.0
 aiohttp==3.8.4
 beautifulsoup4==4.12.2
 lxml==4.9.2
-pillow==9.5.0
+pillow==12.3.0
 numpy==1.24.3
 pandas==2.0.1
 matplotlib==3.7.1

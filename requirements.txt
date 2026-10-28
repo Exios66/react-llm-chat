@@ -7,7 +7,7 @@ anthropic==0.2.7
 tiktoken==0.3.0
 pytest==7.1.2
 flake8==4.0.1
-black==22.3.0
+black==26.10.1
 pytest-cov==3.0.0
 pydantic==1.10.7
 fastapi==0.95.1
